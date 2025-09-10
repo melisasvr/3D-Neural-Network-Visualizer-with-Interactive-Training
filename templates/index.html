@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python 3D Neural Network Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            z-index: 100;
+            min-width: 280px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        #stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            z-index: 100;
+            min-width: 200px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #e0e0e0;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin-bottom: 5px;
+        }
+        
+        input[type="number"] {
+            width: 60px;
+            padding: 5px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            text-align: center;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px 5px 5px 0;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .dataset-btn {
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+        }
+        
+        .dataset-btn:hover {
+            box-shadow: 0 5px 15px rgba(116, 185, 255, 0.4);
+        }
+        
+        .python-badge {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #3776ab, #ffde57);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            z-index: 200;
+            font-size: 14px;
+            box-shadow: 0 4px 15px rgba(55, 118, 171, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="python-badge">Python-Powered Neural Network</div>
+    
+    <div id="container">
+        <div id="controls">
+            <h3 style="margin-top: 0; color: #fff;">Python Neural Network Controls</h3>
+            
+            <div class="control-group">
+                <label>Dataset:</label>
+                <button class="dataset-btn" onclick="generateData('circular')">Circular</button>
+                <button class="dataset-btn" onclick="generateData('linear')">Linear</button>
+                <button class="dataset-btn" onclick="generateData('xor')">XOR</button>
+                <button class="dataset-btn" onclick="generateData('spiral')">Spiral</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Network Architecture:</label>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <span>Layers:</span>
+                    <input type="number" id="numLayers" value="3" min="2" max="5" onchange="updateArchitecture()">
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span>Hidden Size:</span>
+                    <input type="number" id="hiddenSize" value="4" min="2" max="8" onchange="updateArchitecture()">
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label>Learning Rate: <span id="lrValue">0.1</span></label>
+                <input type="range" id="learningRate" min="0.01" max="1" step="0.01" value="0.1" oninput="updateLearningRate()">
+            </div>
+            
+            <div class="control-group">
+                <button onclick="startTraining()" id="trainBtn">Start Training</button>
+                <button onclick="stopTraining()" id="stopBtn" disabled>Stop</button>
+                <button onclick="resetNetwork()">Reset</button>
+            </div>
+        </div>
+        
+        <div id="stats">
+            <h3 style="margin-top: 0; color: #fff;">Training Stats</h3>
+            <div style="margin-bottom: 10px; font-size: 14px;">Epoch: <span style="font-weight: bold; color: #74b9ff;" id="epoch">0</span></div>
+            <div style="margin-bottom: 10px; font-size: 14px;">Loss: <span style="font-weight: bold; color: #74b9ff;" id="loss">0.000</span></div>
+            <div style="margin-bottom: 10px; font-size: 14px;">Accuracy: <span style="font-weight: bold; color: #74b9ff;" id="accuracy">0%</span></div>
+            <div style="margin-bottom: 10px; font-size: 14px;">Backend: <span style="font-weight: bold; color: #00b894;">Python Flask</span></div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let scene, camera, renderer;
+        let networkMeshes = { nodes: [], connections: [] };
+        let isTraining = false;
+        let updateInterval;
+
+        // Initialize Three.js
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 10);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 5);
+            scene.add(directionalLight);
+            
+            setupMouseControls();
+            animate();
+            
+            // Start polling for network state
+            startStatePolling();
+        }
+
+        function setupMouseControls() {
+            let mouseDown = false;
+            let mouseX = 0;
+            let mouseY = 0;
+            
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                mouseDown = true;
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            });
+            
+            renderer.domElement.addEventListener('mouseup', () => {
+                mouseDown = false;
+            });
+            
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (!mouseDown) return;
+                
+                const deltaX = e.clientX - mouseX;
+                const deltaY = e.clientY - mouseY;
+                
+                scene.rotation.y += deltaX * 0.01;
+                scene.rotation.x += deltaY * 0.01;
+                
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            });
+            
+            renderer.domElement.addEventListener('wheel', (e) => {
+                camera.position.z += e.deltaY * 0.01;
+                camera.position.z = Math.max(5, Math.min(20, camera.position.z));
+            });
+        }
+
+        // API functions
+        async function generateData(type) {
+            try {
+                // Store current training state
+                const wasTraining = isTraining;
+                const learningRate = parseFloat(document.getElementById('learningRate').value);
+                
+                const response = await fetch('/api/generate_data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: type })
+                });
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    console.log('Generated ' + result.total_samples + ' ' + type + ' data points');
+                    await resetNetwork(false); // Pass false to avoid stopping training
+                    // Restart training if it was active
+                    if (wasTraining) {
+                        await startTraining(learningRate);
+                    }
+                } else {
+                    alert('Error generating data: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error generating data');
+            }
+        }
+
+        async function startTraining(learningRate = null) {
+            const lr = learningRate || parseFloat(document.getElementById('learningRate').value);
+            
+            try {
+                const response = await fetch('/api/start_training', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ learning_rate: lr })
+                });
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    isTraining = true;
+                    document.getElementById('trainBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+                } else {
+                    alert('Error starting training: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error starting training');
+            }
+        }
+
+        async function stopTraining() {
+            try {
+                const response = await fetch('/api/stop_training', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    isTraining = false;
+                    document.getElementById('trainBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = true;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function resetNetwork(stop = true) {
+            if (stop) {
+                await stopTraining();
+            }
+            
+            const numLayers = parseInt(document.getElementById('numLayers').value);
+            const hiddenSize = parseInt(document.getElementById('hiddenSize').value);
+            
+            const architecture = [2];
+            for (let i = 0; i < numLayers - 2; i++) {
+                architecture.push(hiddenSize);
+            }
+            architecture.push(1);
+            
+            try {
+                const response = await fetch('/api/create_network', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ architecture: architecture })
+                });
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    console.log('Network reset with architecture:', architecture);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function updateArchitecture() {
+            resetNetwork(true);
+        }
+
+        function updateLearningRate() {
+            const lr = document.getElementById('learningRate').value;
+            document.getElementById('lrValue').textContent = lr;
+        }
+
+        // Polling for network state
+        function startStatePolling() {
+            updateInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/get_network_state');
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        updateVisualization(result.network_state);
+                        updateStats(result.network_state.training_stats);
+                        
+                        if (!result.network_state.is_training && isTraining) {
+                            isTraining = false;
+                            document.getElementById('trainBtn').disabled = false;
+                            document.getElementById('stopBtn').disabled = true;
+                        }
+                    }
+                } catch (error) {
+                    // Silently handle polling errors
+                }
+            }, 100);
+        }
+
+        function updateVisualization(networkState) {
+            if (!networkState.architecture || !networkState.weights) return;
+            
+            // Clear existing meshes
+            networkMeshes.nodes.forEach(layerNodes => {
+                layerNodes.forEach(node => scene.remove(node));
+            });
+            networkMeshes.connections.forEach(conn => scene.remove(conn));
+            
+            networkMeshes.nodes = [];
+            networkMeshes.connections = [];
+            
+            const architecture = networkState.architecture;
+            const weights = networkState.weights;
+            const activations = networkState.activations;
+            
+            const layerSpacing = 4;
+            const nodeSpacing = 1.5;
+            
+            // Create nodes
+            architecture.forEach((layerSize, layerIndex) => {
+                const x = (layerIndex - (architecture.length - 1) / 2) * layerSpacing;
+                const layerNodes = [];
+                
+                for (let nodeIndex = 0; nodeIndex < layerSize; nodeIndex++) {
+                    const y = (nodeIndex - (layerSize - 1) / 2) * nodeSpacing;
+                    
+                    const geometry = new THREE.SphereGeometry(0.2, 16, 16);
+                    const material = new THREE.MeshPhongMaterial({
+                        color: layerIndex === 0 ? 0x74b9ff : 
+                               layerIndex === architecture.length - 1 ? 0xff6b6b : 0x00b894
+                    });
+                    
+                    const node = new THREE.Mesh(geometry, material);
+                    node.position.set(x, y, 0);
+                    
+                    // Update based on activation
+                    if (activations && activations[layerIndex] && activations[layerIndex][nodeIndex] !== undefined) {
+                        const activation = activations[layerIndex][nodeIndex];
+                        const intensity = Math.max(0.2, activation);
+                        node.material.emissive.setRGB(intensity * 0.5, intensity * 0.5, intensity * 0.5);
+                        node.scale.setScalar(0.8 + activation * 0.4);
+                    }
+                    
+                    scene.add(node);
+                    layerNodes.push(node);
+                }
+                
+                networkMeshes.nodes.push(layerNodes);
+            });
+            
+            // Create connections
+            for (let i = 0; i < architecture.length - 1; i++) {
+                const currentLayer = networkMeshes.nodes[i];
+                const nextLayer = networkMeshes.nodes[i + 1];
+                
+                currentLayer.forEach((currentNode, currentIndex) => {
+                    nextLayer.forEach((nextNode, nextIndex) => {
+                        const geometry = new THREE.BufferGeometry();
+                        const positions = new Float32Array([
+                            currentNode.position.x, currentNode.position.y, currentNode.position.z,
+                            nextNode.position.x, nextNode.position.y, nextNode.position.z
+                        ]);
+                        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                        
+                        const weight = weights[i][nextIndex][currentIndex];
+                        const opacity = Math.min(Math.abs(weight) * 2, 1);
+                        const color = weight > 0 ? 0x00ff00 : 0xff0000;
+                        
+                        const material = new THREE.LineBasicMaterial({
+                            color: color,
+                            opacity: opacity,
+                            transparent: true
+                        });
+                        
+                        const line = new THREE.Line(geometry, material);
+                        scene.add(line);
+                        networkMeshes.connections.push(line);
+                    });
+                });
+            }
+        }
+
+        function updateStats(stats) {
+            if (!stats) return;
+            
+            document.getElementById('epoch').textContent = stats.epoch || 0;
+            document.getElementById('loss').textContent = (stats.loss || 0).toFixed(4);
+            document.getElementById('accuracy').textContent = (stats.accuracy || 0).toFixed(1) + '%';
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (!isTraining) {
+                scene.rotation.y += 0.002;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        window.addEventListener('load', () => {
+            initThreeJS();
+            resetNetwork();
+            generateData('circular');
+        });
+    </script>
+</body>
+</html>
